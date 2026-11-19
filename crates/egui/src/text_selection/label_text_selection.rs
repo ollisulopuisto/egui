@@ -164,6 +164,16 @@ impl LabelSelectionState {
             .any(ViewportLabelSelectionState::has_selection)
     }
 
+    /// The primary (moving) and secondary (anchor) widget IDs in a viewport.
+    ///
+    /// Virtualized containers must register both endpoints on every pass to
+    /// retain the selection. Register all intervening labels on a copy event
+    /// so the copied text is complete. These IDs reveal no text or cursors.
+    pub fn selection_widget_ids(&self, viewport_id: crate::ViewportId) -> Option<[Id; 2]> {
+        let selection = self.states.get(&viewport_id)?.selection?;
+        Some([selection.primary.widget_id, selection.secondary.widget_id])
+    }
+
     /// Clear all label text selections in all viewports.
     pub fn clear_selection(&mut self) {
         self.states.clear();
@@ -759,6 +769,24 @@ mod tests {
             primary: cursor,
             secondary: cursor,
         }
+    }
+
+    #[test]
+    fn selection_widget_ids_are_viewport_scoped_and_cleared() {
+        let mut state = LabelSelectionState::default();
+        let child = ViewportId::from_hash_of("child");
+        assert_eq!(state.selection_widget_ids(ViewportId::ROOT), None);
+        let mut selection = test_selection();
+        selection.primary.widget_id = Id::new("moving");
+        selection.secondary.widget_id = Id::new("anchor");
+        state.states.entry(child).or_default().selection = Some(selection);
+        assert_eq!(state.selection_widget_ids(ViewportId::ROOT), None);
+        assert_eq!(
+            state.selection_widget_ids(child),
+            Some([Id::new("moving"), Id::new("anchor"),])
+        );
+        state.clear_selection();
+        assert_eq!(state.selection_widget_ids(child), None);
     }
 
     #[test]
